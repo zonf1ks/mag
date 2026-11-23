@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Список покупок</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js">\</script>
+
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+}
+
+body{
+    font-family:Arial,sans-serif;
+    background:#f4f4f4;
+    padding-bottom:120px;
+}
+
+header{
+    background:#2481cc;
+    color:white;
+    padding:15px;
+    text-align:center;
+    position:sticky;
+    top:0;
+    z-index:100;
+}
+
+.stats{
+    padding:10px;
+    text-align:center;
+    font-weight:bold;
+    background:white;
+    margin-bottom:5px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    background:white;
+}
+
+th{
+    background:#2481cc;
+    color:white;
+    padding:10px;
+}
+
+td{
+    border:1px solid #ddd;
+    padding:10px;
+}
+
+.done{
+    text-decoration:line-through;
+    background:#d8ffd8;
+    color:#666;
+}
+
+.delete-btn{
+    background:#ff4d4d;
+    color:white;
+    border:none;
+    border-radius:5px;
+    padding:5px 10px;
+    cursor:pointer;
+}
+
+.bottom-panel{
+    position:fixed;
+    bottom:0;
+    left:0;
+    right:0;
+    background:white;
+    border-top:1px solid #ccc;
+    padding:10px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    box-shadow:0 -2px 10px rgba(0,0,0,.1);
+}
+
+input{
+    width:100%;
+    padding:12px;
+    border:1px solid #ccc;
+    border-radius:8px;
+}
+
+.btn-row{
+    display:flex;
+    gap:8px;
+}
+
+button{
+    flex:1;
+    padding:12px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+.add-btn{
+    background:#28a745;
+    color:white;
+}
+
+.clear-btn{
+    background:#ff9800;
+    color:white;
+}
+
+.export-btn{
+    background:#2481cc;
+    color:white;
+}
+</style>
+
+</head>
+<body>
+
+<header>
+<h2>🛒 Список покупок</h2>
+</header>
+
+<div class="stats" id="stats"></div>
+
+<table>
+<thead>
+<tr>
+<th>✔</th>
+<th>Товар</th>
+<th>Кол-во</th>
+<th>✖</th>
+</tr>
+</thead>
+<tbody id="list"></tbody>
+</table>
+
+<div class="bottom-panel">
+
+<input id="name" placeholder="Название товара">
+
+<input id="qty" placeholder="Количество">
+
+<div class="btn-row">
+<button class="add-btn" onclick="addProduct()">
+Добавить
+</button>
+
+<button class="export-btn" onclick="sendToTelegram()">
+Отправить
+</button>
+
+<button class="clear-btn" onclick="clearAll()">
+Очистить
+</button>
+</div>
+
+</div>
+
+<script>
+
+const tg = window.Telegram.WebApp;
+
+tg.ready();
+tg.expand();
+
+document.body.style.background =
+tg.themeParams.bg_color || "#f4f4f4";
+
+let products = JSON.parse(
+localStorage.getItem("products")
+) || [
+
+{name:"Мука", qty:"2 кг", done:false},
+{name:"Молоко", qty:"2 большие упаковки", done:false},
+{name:"Сахар", qty:"3 кг", done:false},
+{name:"Яйца С0", qty:"2 десятка", done:false},
+{name:"Бедро куриное", qty:"1 лоток", done:false},
+{name:"Голень куриная", qty:"2 лотка", done:false},
+{name:"Фарш", qty:"1 кг", done:false},
+{name:"Лук зеленый", qty:"1 пучок", done:false},
+{name:"Укроп", qty:"1 пучок", done:false},
+{name:"Рис", qty:"3 кг", done:false},
+{name:"Гречка", qty:"2 кг", done:false},
+{name:"Булгур", qty:"1 кг", done:false},
+{name:"Масло сливочное", qty:"2 шт", done:false},
+{name:"Масло рафинированное", qty:"1 л", done:false},
+{name:"Капуста", qty:"1 шт", done:false},
+{name:"Колбаса вареная", qty:"1 шт", done:false},
+{name:"Сервелат", qty:"1 шт", done:false},
+{name:"Лук репчатый", qty:"5 шт", done:false},
+{name:"Лук красный", qty:"1 шт", done:false},
+{name:"Чеснок", qty:"3 головки", done:false},
+{name:"Овощная смесь", qty:"2 упаковки", done:false},
+{name:"Пельмени", qty:"2 упаковки", done:false},
+{name:"Картошка", qty:"10 кг", done:false},
+{name:"Кетчуп", qty:"1 шт", done:false},
+{name:"Майонез", qty:"1 шт", done:false},
+{name:"Горчица", qty:"1 шт", done:false},
+{name:"Разрыхлитель", qty:"1 шт", done:false},
+{name:"Тунец", qty:"2 банки", done:false},
+{name:"Сыр", qty:"2 упаковки", done:false},
+{name:"Свекла", qty:"1 шт", done:false}
+
+];
+
+function save(){
+localStorage.setItem(
+"products",
+JSON.stringify(products)
+);
+}
+
+function updateStats(){
+
+const bought = products.filter(
+x=>x.done
+).length;
+
+document.getElementById("stats").innerHTML =
+`Всего: ${products.length} | Куплено: ${bought}`;
+}
+
+function render(){
+
+const list = document.getElementById("list");
+
+list.innerHTML = "";
+
+products.forEach((p,index)=>{
+
+const row = document.createElement("tr");
+
+if(p.done){
+row.classList.add("done");
+}
+
+row.innerHTML = `
+<td>
+<input type="checkbox"
+${p.done ? "checked" : ""}
+onchange="toggle(${index})">
+</td>
+
+<td contenteditable="true"
+onblur="editName(${index},this.innerText)">
+${p.name}
+</td>
+
+<td contenteditable="true"
+onblur="editQty(${index},this.innerText)">
+${p.qty}
+</td>
+
+<td>
+<button class="delete-btn"
+onclick="removeProduct(${index})">
+✖
+</button>
+</td>
+`;
+
+list.appendChild(row);
+
+});
+
+updateStats();
+save();
+}
+
+function addProduct(){
+
+const name =
+document.getElementById("name").value.trim();
+
+const qty =
+document.getElementById("qty").value.trim();
+
+if(!name) return;
+
+products.push({
+name,
+qty,
+done:false
+});
+
+document.getElementById("name").value="";
+document.getElementById("qty").value="";
+
+render();
+}
+
+function removeProduct(index){
+products.splice(index,1);
+render();
+}
+
+function toggle(index){
+products[index].done =
+!products[index].done;
+
+render();
+}
+
+function editName(index,value){
+products[index].name=value;
+save();
+}
+
+function editQty(index,value){
+products[index].qty=value;
+save();
+}
+
+function clearAll(){
+
+if(confirm("Очистить список?")){
+products=[];
+render();
+}
+}
+
+function sendToTelegram(){
+
+let text = "🛒 Список покупок\n\n";
+
+products.forEach(item=>{
+
+text +=
+(item.done ? "✅ " : "⬜ ") +
+item.name +
+(item.qty ? " — " + item.qty : "") +
+"\n";
+
+});
+
+tg.sendData(text);
+
+alert("Список отправлен в Telegram");
+}
+
+render();
+
+</script>
+
+</body>
+</html>
